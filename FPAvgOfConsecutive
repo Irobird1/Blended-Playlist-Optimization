@@ -1,0 +1,73 @@
+import pulp
+from pathlib import Path
+
+def read_input2(in_file):
+    """ Parses input file into a list of lists """
+    output = []
+    fin = open(in_file, "r")
+    for line in fin.read().split("\n"):
+        output.append(line.split("$"))
+    fin.close()
+    return output[:-1]
+
+def LP_order_songs():
+    """ SECOND LP: ORDERING
+
+        Sequences the chosen songs from the inclusion LP to maximize the average between two consecutive songs
+    """
+    inputs = read_input2(Path(__file__).parent / "included_songs.txt")
+    #print(inputs)
+
+    # Number of n consecutive songs u want to optimize the avg for. Ex. amountOfConsecutive = 5 would optimize
+    # the average for every 5 consecutive songs
+    amountOfConsecutive = 3
+
+    # LP definition
+    sequence = pulp.LpProblem("sequence", pulp.LpMaximize)
+
+    # LP variables
+    ## Adds a variable for each slot in a nxn matrix for n songs
+    ## Rows (y) = the song
+    ## Columns (x) = the spot in the rotation
+    vars = []
+    for y in range(len(inputs)):
+        row = []
+        for x in range(len(inputs)):
+            row.append(sequence.add_variable(str(y)+"$"+str(x), cat=pulp.LpBinary))
+        vars.append(row)
+
+    # LP constraints and objective
+    ## Each song must be chosen exactly once
+    for y in range(len(inputs)):
+        positions = 0
+        for x in range(len(inputs)):
+            positions += vars[y][x]
+        sequence.addConstraint(positions == 1)
+    ## Each position must have exactly one song
+    for x in range(len(inputs)):
+        positions = 0
+        for y in range(len(inputs)):
+            positions +=vars[y][x]
+        sequence.addConstraint(positions == 1)
+    ## Identify consecutive songs
+    average_score = 0
+    for x in range(len(inputs) - amountOfConsecutive + 1):
+        groupAverage = 0
+        for a in range(amountOfConsecutive):
+            for b in range(len(inputs)):
+                groupAverage += (float(inputs[b][2]) / amountOfConsecutive) * vars[b][x+a]
+        average_score += groupAverage
+    sequence.setObjective(average_score)
+
+    # Solves the order of songs and writes to a file
+    # status2 = sequence.solve()
+    status2 = sequence.solve(pulp.PULP_CBC_CMD())    #### For Jason and Robert
+    print("Total Average: "+str(pulp.value(average_score)))
+    with open(Path(__file__).parent / "maximize_average_order.txt", "w") as solution:
+        for x in range(len(inputs)):
+            for a in range(len(inputs)):
+                if vars[a][x].varValue == 1:
+                    print(f"Position {x + 1}: {'$'.join(inputs[a])}")    # Use x + 1 to move from 0 to 1 index
+                    solution.write(f"{'$'.join(inputs[a])}"+"\n")
+
+LP_order_songs()
