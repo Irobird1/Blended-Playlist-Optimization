@@ -51,9 +51,13 @@ def LP_order_songs():
         sequence.addConstraint(positions == 1)
     ## Identify consecutive songs
     average_score = 0
+    # Breaks it into groups basically and gets the avg of those based on the value for amountOfConsecutive 
     for x in range(len(inputs) - amountOfConsecutive + 1):
-        groupAverage = 0
+        groupAverage = 0 # For the average of each group then we'll later add these all to average_score
+        # Based on amountOfConsecutive it loops through this amt of times for a certain group
         for a in range(amountOfConsecutive):
+            # Loops through the actual songs & adds their happiness scores divided by amountOfConsecutive.
+            # Then it multiplies this by 1 if the song in the position is within the group or 0 if not
             for b in range(len(inputs)):
                 groupAverage += (float(inputs[b][2]) / amountOfConsecutive) * vars[b][x+a]
         average_score += groupAverage
