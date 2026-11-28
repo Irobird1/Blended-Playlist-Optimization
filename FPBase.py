@@ -61,7 +61,7 @@ def read_input2(in_file):
     fin.close()
     return output[:-1]
 
-def LP_order_songs():
+def LP_order_songs_avg_score2():
     """ SECOND LP: ORDERING
 
         Sequences the chosen songs from the inclusion LP to maximize the average between two consecutive songs
@@ -82,6 +82,7 @@ def LP_order_songs():
         for x in range(len(inputs)):
             row.append(sequence.add_variable(str(y)+"$"+str(x), cat=pulp.LpBinary))
         vars.append(row)
+    min_average = sequence.add_variable("min_avg", lowBound=None, cat=pulp.LpContinuous)
 
     # LP constraints and objective
     ## Each song must be chosen exactly once
@@ -112,12 +113,12 @@ def LP_order_songs():
 
                     # Score = score for song * if we use it
                     twosongavgscore = (float(inputs[a][2]) + float(inputs[b][2]))/2.0
-                    average_score += twosongavgscore * consecutive_pair
-    sequence.setObjective(average_score)
+                    sequence.addConstraint(min_average <= twosongavgscore + 20 * (1 - consecutive_pair))
+    sequence.setObjective(min_average)
 
     # Solves the order of songs and writes to a file
-    status2 = sequence.solve()
-    #status2 = sequence.solve(pulp.PULP_CBC_CMD())    #### For Jason and Robert
+    #status = sequence.solve()
+    status = sequence.solve(pulp.PULP_CBC_CMD())    #### For Jason and Robert
     print("Total Average: "+str(pulp.value(average_score)))
     with open(Path(__file__).parent / "maximize_average_order.txt", "w") as solution:
         for x in range(len(inputs)):
@@ -126,4 +127,79 @@ def LP_order_songs():
                     print(f"Position {x + 1}: {'$'.join(inputs[a])}")    # Use x + 1 to move from 0 to 1 index
                     solution.write(f"{'$'.join(inputs[a])}"+"\n")
 
-LP_order_songs()
+
+def LP_order_songs_avg_score3():
+    """ SECOND LP: ORDERING
+
+        Sequences the chosen songs from the inclusion LP to maximize the average between three consecutive songs
+    """
+    inputs = read_input2(Path(__file__).parent / "included_songs.txt")
+    #print(inputs)
+
+    # LP definition
+    sequence = pulp.LpProblem("sequence", pulp.LpMaximize)
+
+    # LP variables
+    ## Adds a variable for each slot in a nxn matrix for n songs
+    ## Rows (y) = the song
+    ## Columns (x) = the spot in the rotation
+    vars = []
+    for y in range(len(inputs)):
+        row = []
+        for x in range(len(inputs)):
+            row.append(sequence.add_variable(str(y)+"$"+str(x), cat=pulp.LpBinary))
+        vars.append(row)
+    min_average = sequence.add_variable("min_avg", lowBound=None, cat=pulp.LpContinuous)
+
+    # LP constraints and objective
+    ## Each song must be chosen exactly once
+    for y in range(len(inputs)):
+        positions = 0
+        for x in range(len(inputs)):
+            positions += vars[y][x]
+        sequence.addConstraint(positions == 1)
+    ## Each position must have exactly one song
+    for x in range(len(inputs)):
+        positions = 0
+        for y in range(len(inputs)):
+            positions +=vars[y][x]
+        sequence.addConstraint(positions == 1)
+    ## Identify consecutive songs
+    average_score = 0
+    for x in range(len(inputs)-2):
+        for a in range(len(inputs)):
+            for b in range(len(inputs)):
+                for c in range(len(inputs)):
+                    if not (a == b) and not (a == c) and not (b == c):
+                        # consecutive_pair = 1 when this ordered pair is used and 0 otherwise
+                        consecutive_pair = sequence.add_variable(f"({a},{b},{c})@{x}", cat=pulp.LpBinary)
+                        # consecutive_pair can only be 1 when used by both
+                        sequence.addConstraint(consecutive_pair <= vars[a][x])
+                        sequence.addConstraint(consecutive_pair <= vars[b][x+1])
+                        sequence.addConstraint(consecutive_pair <= vars[c][x+2])
+                        # consecutive_pair must be 1 when used by both
+                        sequence.addConstraint(consecutive_pair >= vars[a][x] + vars[b][x+1] + vars[c][x+2] - 2)
+
+                        # Score = score for song * if we use it
+                        threesongavgscore = (float(inputs[a][2]) + float(inputs[b][2]) + float(inputs[c][2]))/3.0
+                        sequence.addConstraint(min_average <= threesongavgscore + 20 * (1 - consecutive_pair))
+    sequence.setObjective(min_average)
+
+    # Solves the order of songs and writes to a file
+    #status = sequence.solve()
+    status = sequence.solve(pulp.PULP_CBC_CMD())    #### For Jason and Robert
+    print("Total Average: "+str(pulp.value(average_score)))
+    with open(Path(__file__).parent / "maximize_average_order.txt", "w") as solution:
+        for x in range(len(inputs)):
+            for a in range(len(inputs)):
+                if vars[a][x].varValue == 1:
+                    print(f"Position {x + 1}: {'$'.join(inputs[a])}")    # Use x + 1 to move from 0 to 1 index
+                    solution.write(f"{'$'.join(inputs[a])}"+"\n")
+
+
+
+
+
+
+#LP_order_songs_avg_score2()
+LP_order_songs_avg_score3()
